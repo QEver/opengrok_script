@@ -107,6 +107,23 @@ def run_tomcat(name, dir):
     f.write(new)
     f.close()
 
+def update_root(name):
+    target = os.path.join(WEBAPPS_DIR, 'ROOT/index.html')
+    if os.path.exists(target):
+        try:
+            f = open(target, 'r')
+            n = ''
+            for i in f:
+                n = n + i
+                if i.find('<!--Source List-->') != -1:
+                    n += '<a href="/%s" class="list-group-item">%s</a>\n' % (name, name)
+            f.close()
+            f = open(target, 'w')
+            f.write(n)
+            f.close()
+        except:
+            pass
+           
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
@@ -117,3 +134,5 @@ if __name__ == '__main__':
 
     run_tomcat(name, path)
     run_opengrok(path, name)
+    
+    update_root(name)
