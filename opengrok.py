@@ -20,7 +20,17 @@ elif platform.system() == 'Linux':
     cmd = ["whereis", "ctags"]
     CTAGS_PATH = run_cmd(cmd)[0].split(":")[1].strip().split(" ")[0]
     TOMCAT_DIR = '/var/lib/tomcat8'
-    OPENGROK_DIR = '/home/qever/tools/opengrok'
+    OPENGROK_DIR = os.path.expanduser('~/tools/opengrok')
+elif platform.system() == 'Darwin':
+    cmd = ['brew', '--prefix', 'tomcat@8.0']
+    TOMCAT_DIR = run_cmd(cmd)[0].strip()
+    TOMCAT_DIR = os.path.join(TOMCAT_DIR, 'libexec')
+    OPENGROK_DIR = os.path.expanduser('~/tools/opengrok')
+    cmd = ["whereis", "ctags"]
+    CTAGS_PATH = run_cmd(cmd)[0].strip()
+else:
+    print "Unsupport Platform : ", platform.system()
+    exit()
 
 OPENGROK_OPTIONS = '-r on -a on -S -P -C'
 JAVA_OPTIONS = '-Xmx4096m'
@@ -29,7 +39,38 @@ OPENGROK_JAR = os.path.join(OPENGROK_DIR, "lib/opengrok.jar")
 WEBAPPS_DIR = os.path.join(TOMCAT_DIR, "webapps")
 SOURCE_WAR = os.path.join(OPENGROK_DIR, 'lib/source.war')
 
+if not os.path.exists(OPENGROK_DIR):
+    print 'Can not found Opengrok in %s' % OPENGROK_DIR
+    exit(0)
+if not os.path.exists(OPENGROK_JAR):
+    print 'Can not found opengrok.jar in %s' % OPENGROK_JAR
+    exit(0)
+if not os.path.exists(SOURCE_WAR):
+    print 'Can not found source.war in %s' % SOURCE_WAR
+    exit(0)
+if not os.path.exists(TOMCAT_DIR):
+    print 'Can not found tomcat in %s' % TOMCAT_DIR
+    exit(0)
+if not os.path.exists(WEBAPPS_DIR):
+    print 'Can not found WebApps Dir in %s' % WEBAPPS_DIR
+    exit(0)
+if not os.path.exists(CTAGS_PATH):
+    print 'Can not found ctags in %s' % CTAGS_PATH
+    exit(0)
+    
+if not os.path.exists(OPENGROK_DATA):
+    os.mkdir(OPENGROK_DATA)
 
+print 'OpenGrok Dir      : %s' % OPENGROK_DIR
+print 'OpenGrok Options  : %s' % OPENGROK_OPTIONS
+print 'OpenGrok Jar Path : %s' % OPENGROK_JAR
+print 'OpenGrok Data Dir : %s' % OPENGROK_DATA
+print 'OpenGrok War Path : %s' % SOURCE_WAR
+print
+print 'Tomcat Dir  : %s' % TOMCAT_DIR
+print 'WebApps Dir : %s' % WEBAPPS_DIR
+print 
+print 'Ctags Path : %s' % CTAGS_PATH
 
 def run_opengrok(path, name):
     cmd = ''
