@@ -3,14 +3,19 @@ import os
 import re
 import sys
 import platform
-import zipfile
+import time
+import shutil
+import urllib
 import subprocess
-import xml.etree.ElementTree as ET
+
 
 def run_cmd(cmd):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     data = p.communicate()
     return data
+
+
+TOMCAT_ADDR = "http://localhost:8080"
 
 if platform.system() == 'Windows':
     OPENGROK_DIR = 'C:/Users/QEver/Tools/opengrok-0.13-rc4'
@@ -20,7 +25,7 @@ elif platform.system() == 'Linux':
     cmd = ["whereis", "ctags"]
     CTAGS_PATH = run_cmd(cmd)[0].split(":")[1].strip().split(" ")[0]
     TOMCAT_DIR = '/var/lib/tomcat8'
-    OPENGROK_DIR = os.path.expanduser('~/tools/opengrok-1.1-rc58')
+    OPENGROK_DIR = os.path.expanduser('~/tools/opengrok-1.1.2')
 elif platform.system() == 'Darwin':
     cmd = ['brew', '--prefix', 'tomcat@8.0']
     TOMCAT_DIR = run_cmd(cmd)[0].strip()
@@ -33,7 +38,7 @@ else:
     exit()
 
 
-OPENGROK_OPTIONS = '-r on -a on -S -P -C'
+OPENGROK_OPTIONS = '-H -P -S -G'
 JAVA_OPTIONS = '-Xmx4096m'
 OPENGROK_DATA = os.path.join(OPENGROK_DIR, "data")
 OPENGROK_JAR = os.path.join(OPENGROK_DIR, "lib/opengrok.jar")
@@ -73,7 +78,6 @@ print 'WebApps Dir : %s' % WEBAPPS_DIR
 print 
 print 'Ctags Path : %s' % CTAGS_PATH
 
-
 def get_opengrok_version():
     cmd = 'java ' + JAVA_OPTIONS + ' -jar ' + OPENGROK_JAR + ' -V'
     vers = os.popen(cmd).read()
@@ -93,112 +97,44 @@ def is_opengrok_has_indexer():
         return True
     return False
 
+'''
+java -Djava.util.logging.config.file=/var/opengrok/logging.properties \
+    -jar /opengrok/dist/lib/opengrok.jar \
+    -c /path/to/universal/ctags \
+    -s /var/opengrok/src -d /var/opengrok/data -H -P -S -G \
+    -W /var/opengrok/etc/configuration.xml -U http://localhost:8080/source
+'''
 
 def run_opengrok(path, name):
     cmd = ''
-    version = get_opengrok_version()
-    if version > 'v1.1-rc11' and is_opengrok_has_indexer():
-        indexer = get_opengrok_indexer()
-        #./indexer.py -a ../lib/opengrok.jar -- -s /home/qever/source/v8/ -d ../data -W ../data/v8.xml -U http://localhost:8080
-        cmd += indexer + ' '
-        cmd += '-a ' + OPENGROK_JAR + ' -- '
-    else:
-        cmd += 'java ' + JAVA_OPTIONS + ' '
-        cmd += '-jar ' + OPENGROK_JAR + ' '
-        cmd += OPENGROK_OPTIONS + ' '
-        cmd += '-c ' + CTAGS_PATH + ' '
-        cmd += '-w ' + name +' '
-    
-    cmd += '-W ' + os.path.join(OPENGROK_DATA, name + '.xml') + ' '
+    cmd += 'java ' + JAVA_OPTIONS + ' '
+    cmd += '-Djava.util.logging.config.file=/var/opengrok/logging.properties' + ' '
+    cmd += '-jar ' + OPENGROK_JAR + ' '
+    cmd += '-c ' + CTAGS_PATH + ' '
+    cmd += '-s ' + path + ' '
     cmd += '-d ' + os.path.join(OPENGROK_DATA, name) + ' '
-    cmd += '-s ' + path
+    cmd += OPENGROK_OPTIONS + ' '
+    cmd += '-W ' + os.path.join(OPENGROK_DATA, name + '.xml') + ' '
+    cmd += '-U ' + TOMCAT_ADDR + '/' + name
+
 
     print cmd
     os.system(cmd)
 
+def run_tomcat(name):
+    webapps_war = os.path.join(WEBAPPS_DIR, name + '.war')
+    shutil.copy(SOURCE_WAR, webapps_war)
 
-def new_context_param(name, value):
-    context = ET.Element('ns0:context-param')
+    url = TOMCAT_ADDR + '/' + name
+    while True:
+        print("[*] Waiting for %s" % url)
+        r = urllib.urlopen(url)
+        code = r.code
+        r.close()
+        time.sleep(1)
+        if code != 404:
+            break
 
-    param_name = ET.Element('ns0:param-name')
-    param_name.text = name
-    param_value = ET.Element('ns0:param-value')
-    param_value.text = value
-
-    context.append(param_name)
-    context.append(param_value)
-    return context
-
-
-def addto_webxml(xml, config, src_root, data_root):
-    ET.register_namespace('', 'http://java.sun.com/xml/ns/javaee')
-    ET.register_namespace('xsi', 'http://www.w3.org/2001/XMLSchema-instance')
-    try:
-        tree = ET.fromstring(xml)
-    except ImportError,e:
-        print e
-        from xml.etree import ElementTree
-        from elementtree import SimpleXMLTreeBuilder
-        ElementTree.XMLTreeBuilder = SimpleXMLTreeBuilder.TreeBuilder
-        tree = ET.fromstring(xml)
-
-
-    for child in tree:
-        if 'context-param' in child.tag:
-            for i in child:
-                if 'param-name' in i.tag:
-                    if i.text == 'CONFIGURATION':
-                        for j in child:
-                            if 'param-value' in j.tag:
-                                j.text = config
-    
-    src_root_elem = new_context_param('SRC_ROOT', src_root)
-#    data = '''
-#  <context-param>
-#   <param-name>SRC_ROOT</param-name>
-#   <param-value>%s</param-value>
-#  </context-param>
-#  ''' % src_root
-#
-#    e = ET.fromstring(data)
-    data_root_elem = new_context_param('DATA_ROOT', data_root)
-#    data = '''
-#  <context-param>
-#   <param-name>DATA_ROOT</param-name>
-#   <param-value>%s</param-value>
-#  </context-param>''' % data_root
-#
-#    t = ET.fromstring(data)
-
-    tree.insert(3, src_root_elem)
-    tree.insert(3, data_root_elem)
-
-    return ET.tostring(tree, method='xml')
-
-def configure_xml_name(name):
-    return os.path.join(OPENGROK_DATA, name + '.xml')
-
-def data_root_path(name):
-    return os.path.join(OPENGROK_DATA, name)
-
-
-def run_tomcat(name, dir):
-    if not zipfile.is_zipfile(SOURCE_WAR):
-        print '%s is not a zip file!' % SOURCE_WAR
-        raise
-
-    zf = zipfile.ZipFile(SOURCE_WAR)
-    zf.extractall(os.path.join(WEBAPPS_DIR,name))
-    f = zf.open(r'WEB-INF/web.xml', 'r')
-    xml = f.read()
-    f.close()
-    zf.close()
-
-    new = addto_webxml(xml, configure_xml_name(name), dir, data_root_path(name))
-
-    f = open(os.path.join(WEBAPPS_DIR, name, "WEB-INF/web.xml"), "w")
-    f.write(new)
-    f.close()
 
 def update_root(name):
     target = os.path.join(WEBAPPS_DIR, 'ROOT/index.html')
@@ -219,13 +155,16 @@ def update_root(name):
            
 
 if __name__ == '__main__':
+    path = '.'
     if len(sys.argv) > 1:
         path = sys.argv[1]
-    else:
-        path = os.path.abspath(".")
+
+    path = os.path.abspath(path)
+    if not os.path.exists(path):
+        raise Exception("%s is Not Exists" % path)
     name = os.path.basename(path)
 
-    run_tomcat(name, path)
+    run_tomcat(name)
     run_opengrok(path, name)
     
     update_root(name)
