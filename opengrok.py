@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 import os
 import re
 import sys
@@ -27,12 +27,12 @@ elif platform.system() == 'Linux':
     TOMCAT_DIR = '/var/lib/tomcat8'
     OPENGROK_DIR = os.path.expanduser('~/tools/opengrok-1.1.2')
 elif platform.system() == 'Darwin':
-    cmd = ['brew', '--prefix', 'tomcat@8.0']
+    cmd = ['brew', '--prefix', 'tomcat@8']
     TOMCAT_DIR = run_cmd(cmd)[0].strip()
     TOMCAT_DIR = os.path.join(TOMCAT_DIR, 'libexec')
     OPENGROK_DIR = os.path.expanduser('~/tools/opengrok')
-    cmd = ["whereis", "ctags"]
-    CTAGS_PATH = run_cmd(cmd)[0].strip()
+    cmd = ["brew", '--prefix', "universal-ctags"]
+    CTAGS_PATH = os.path.join(run_cmd(cmd)[0].strip(), 'bin/ctags')
 else:
     print "Unsupport Platform : ", platform.system()
     exit()
