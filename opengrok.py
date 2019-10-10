@@ -2,6 +2,7 @@
 import os
 import re
 import sys
+from lxml import etree
 import platform
 import time
 import shutil
@@ -153,6 +154,26 @@ def update_root(name):
         except:
             pass
            
+def update_web_xml(name):
+    webxml = os.path.join(WEBAPPS_DIR, name, 'WEB-INF', 'web.xml')
+    configure = os.path.join(OPENGROK_DATA, name + '.xml')
+    tree = etree.parse(webxml)
+    root = tree.getroot()
+    for i in root.getchildren(): 
+    if 'context-param' in i.tag: 
+        for j in i.getchildren(): 
+            if 'param-name' in j.tag: 
+                if j.text == 'CONFIGURATION': 
+                    f = True 
+        if f: 
+            for j in i.getchildren():  
+                if 'param-value' in j.tag: 
+                    j.text = configure
+                    break
+            break
+     
+                     
+
 
 if __name__ == '__main__':
     path = '.'
@@ -166,5 +187,5 @@ if __name__ == '__main__':
 
     run_tomcat(name)
     run_opengrok(path, name)
-    
+    update_web_xml(name)
     update_root(name)
