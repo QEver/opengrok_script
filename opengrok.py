@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import os
 import re
 import sys
@@ -7,13 +7,14 @@ import platform
 import time
 import shutil
 import urllib
+from urllib.request import urlopen
 import subprocess
 
 
 def run_cmd(cmd):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     data = p.communicate()
-    return data
+    return [i.decode() for i in data if i is not None]
 
 
 TOMCAT_ADDR = "http://localhost:8080"
@@ -35,7 +36,7 @@ elif platform.system() == 'Darwin':
     cmd = ["brew", '--prefix', "universal-ctags"]
     CTAGS_PATH = os.path.join(run_cmd(cmd)[0].strip(), 'bin/ctags')
 else:
-    print "Unsupport Platform : ", platform.system()
+    print("Unsupport Platform : ", platform.system())
     exit()
 
 
@@ -47,37 +48,37 @@ WEBAPPS_DIR = os.path.join(TOMCAT_DIR, "webapps")
 SOURCE_WAR = os.path.join(OPENGROK_DIR, 'lib/source.war')
 
 if not os.path.exists(OPENGROK_DIR):
-    print 'Can not found Opengrok in %s' % OPENGROK_DIR
+    print('Can not found Opengrok in %s' % OPENGROK_DIR)
     exit(0)
 if not os.path.exists(OPENGROK_JAR):
-    print 'Can not found opengrok.jar in %s' % OPENGROK_JAR
+    print('Can not found opengrok.jar in %s' % OPENGROK_JAR)
     exit(0)
 if not os.path.exists(SOURCE_WAR):
-    print 'Can not found source.war in %s' % SOURCE_WAR
+    print('Can not found source.war in %s' % SOURCE_WAR)
     exit(0)
 if not os.path.exists(TOMCAT_DIR):
-    print 'Can not found tomcat in %s' % TOMCAT_DIR
+    print('Can not found tomcat in %s' % TOMCAT_DIR)
     exit(0)
 if not os.path.exists(WEBAPPS_DIR):
-    print 'Can not found WebApps Dir in %s' % WEBAPPS_DIR
+    print('Can not found WebApps Dir in %s' % WEBAPPS_DIR)
     exit(0)
 if not os.path.exists(CTAGS_PATH):
-    print 'Can not found ctags in %s' % CTAGS_PATH
+    print('Can not found ctags in %s' % CTAGS_PATH)
     exit(0)
     
 if not os.path.exists(OPENGROK_DATA):
     os.mkdir(OPENGROK_DATA)
 
-print 'OpenGrok Dir      : %s' % OPENGROK_DIR
-print 'OpenGrok Options  : %s' % OPENGROK_OPTIONS
-print 'OpenGrok Jar Path : %s' % OPENGROK_JAR
-print 'OpenGrok Data Dir : %s' % OPENGROK_DATA
-print 'OpenGrok War Path : %s' % SOURCE_WAR
-print
-print 'Tomcat Dir  : %s' % TOMCAT_DIR
-print 'WebApps Dir : %s' % WEBAPPS_DIR
-print 
-print 'Ctags Path : %s' % CTAGS_PATH
+print('OpenGrok Dir      : %s' % OPENGROK_DIR)
+print('OpenGrok Options  : %s' % OPENGROK_OPTIONS)
+print('OpenGrok Jar Path : %s' % OPENGROK_JAR)
+print('OpenGrok Data Dir : %s' % OPENGROK_DATA)
+print('OpenGrok War Path : %s' % SOURCE_WAR)
+print()
+print('Tomcat Dir  : %s' % TOMCAT_DIR)
+print('WebApps Dir : %s' % WEBAPPS_DIR)
+print()
+print('Ctags Path : %s' % CTAGS_PATH)
 
 def get_opengrok_version():
     cmd = 'java ' + JAVA_OPTIONS + ' -jar ' + OPENGROK_JAR + ' -V'
@@ -119,7 +120,7 @@ def run_opengrok(path, name):
     cmd += '-U ' + TOMCAT_ADDR + '/' + name
 
 
-    print cmd
+    print(cmd)
     os.system(cmd)
 
 def run_tomcat(name):
@@ -129,9 +130,13 @@ def run_tomcat(name):
     url = TOMCAT_ADDR + '/' + name
     while True:
         print("[*] Waiting for %s" % url)
-        r = urllib.urlopen(url)
-        code = r.code
-        r.close()
+        try:
+            r = urlopen(url)
+            code = r.code
+            r.close()
+
+        except urllib.error.HTTPError as e:
+            code = e.code
         time.sleep(1)
         if code != 404:
             break
@@ -160,17 +165,17 @@ def update_web_xml(name):
     tree = etree.parse(webxml)
     root = tree.getroot()
     for i in root.getchildren(): 
-    if 'context-param' in i.tag: 
-        for j in i.getchildren(): 
-            if 'param-name' in j.tag: 
-                if j.text == 'CONFIGURATION': 
-                    f = True 
-        if f: 
-            for j in i.getchildren():  
-                if 'param-value' in j.tag: 
-                    j.text = configure
-                    break
-            break
+        if 'context-param' in i.tag: 
+            for j in i.getchildren(): 
+                if 'param-name' in j.tag: 
+                    if j.text == 'CONFIGURATION': 
+                        f = True 
+            if f: 
+                for j in i.getchildren():  
+                    if 'param-value' in j.tag: 
+                        j.text = configure
+                        break
+                break
      
                      
 
