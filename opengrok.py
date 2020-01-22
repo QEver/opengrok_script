@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import stat
 import re
 import sys
 from lxml import etree
@@ -9,6 +10,8 @@ import shutil
 import urllib
 from urllib.request import urlopen
 import subprocess
+import tempfile
+import zipfile
 
 
 def run_cmd(cmd):
@@ -27,7 +30,7 @@ elif platform.system() == 'Linux':
     cmd = ["whereis", "ctags"]
     CTAGS_PATH = run_cmd(cmd)[0].split(":")[1].strip().split(" ")[0]
     TOMCAT_DIR = '/var/lib/tomcat8'
-    OPENGROK_DIR = os.path.expanduser('~/tools/opengrok-1.1.2')
+    OPENGROK_DIR = os.path.expanduser('~/tools/opengrok')
 elif platform.system() == 'Darwin':
     cmd = ['brew', '--prefix', 'tomcat@8']
     TOMCAT_DIR = run_cmd(cmd)[0].strip()
@@ -42,10 +45,14 @@ else:
 
 OPENGROK_OPTIONS = '-H -P -S -G'
 JAVA_OPTIONS = '-Xmx4096m'
-OPENGROK_DATA = os.path.join(OPENGROK_DIR, "data")
 OPENGROK_JAR = os.path.join(OPENGROK_DIR, "lib/opengrok.jar")
 WEBAPPS_DIR = os.path.join(TOMCAT_DIR, "webapps")
 SOURCE_WAR = os.path.join(OPENGROK_DIR, 'lib/source.war')
+
+if 'OPENGROK_DATA' in os.environ:
+    OPENGROK_DATA = os.environ['OPENGROK_DATA']
+else:
+    OPENGROK_DATA = os.path.join(OPENGROK_DIR, "data")
 
 if not os.path.exists(OPENGROK_DIR):
     print('Can not found Opengrok in %s' % OPENGROK_DIR)
@@ -124,8 +131,20 @@ def run_opengrok(path, name):
     os.system(cmd)
 
 def run_tomcat(name):
-    webapps_war = os.path.join(WEBAPPS_DIR, name + '.war')
-    shutil.copy(SOURCE_WAR, webapps_war)
+    webapps_dir = os.path.join(WEBAPPS_DIR, name)
+    tmpdir = tempfile.TemporaryDirectory(prefix=name)
+
+    zf = zipfile.ZipFile(SOURCE_WAR)
+
+    zf.extractall(tmpdir.name)
+
+    zf.close()
+
+    webxml = os.path.join(tmpdir.name, 'WEB-INF', 'web.xml')
+    update_web_xml(webxml, name)
+
+    shutil.copytree(tmpdir.name, webapps_dir)
+    os.chmod(webapps_dir, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
 
     url = TOMCAT_ADDR + '/' + name
     while True:
@@ -158,9 +177,9 @@ def update_root(name):
             f.close()
         except:
             pass
-           
-def update_web_xml(name):
-    webxml = os.path.join(WEBAPPS_DIR, name, 'WEB-INF', 'web.xml')
+
+   
+def update_web_xml(webxml, name):
     configure = os.path.join(OPENGROK_DATA, name + '.xml')
     tree = etree.parse(webxml)
     root = tree.getroot()
@@ -176,9 +195,8 @@ def update_web_xml(name):
                         j.text = configure
                         break
                 break
-     
+    tree.write(webxml, pretty_print=True)
                      
-
 
 if __name__ == '__main__':
     path = '.'
@@ -192,5 +210,4 @@ if __name__ == '__main__':
 
     run_tomcat(name)
     run_opengrok(path, name)
-    update_web_xml(name)
     update_root(name)
