@@ -12,7 +12,7 @@ from urllib.request import urlopen
 import subprocess
 import tempfile
 import zipfile
-
+import argparse
 
 def run_cmd(cmd):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
@@ -48,6 +48,7 @@ JAVA_OPTIONS = '-Xmx4096m'
 OPENGROK_JAR = os.path.join(OPENGROK_DIR, "lib/opengrok.jar")
 WEBAPPS_DIR = os.path.join(TOMCAT_DIR, "webapps")
 SOURCE_WAR = os.path.join(OPENGROK_DIR, 'lib/source.war')
+LOGIN_SOURCE_WAR = os.path.join(OPENGROK_DIR, 'lib/login_source.war')
 
 if 'OPENGROK_DATA' in os.environ:
     OPENGROK_DATA = os.environ['OPENGROK_DATA']
@@ -130,7 +131,54 @@ def run_opengrok(path, name):
     print(cmd)
     os.system(cmd)
 
-def run_tomcat(name):
+def login_config_elements():
+    eles = []
+    text = '''
+        <security-constraint>
+        <web-resource-collection>                                               
+            <web-resource-name>API endpoints are checked separately by the web app</web-resource-name>
+            <url-pattern>/api/*</url-pattern>                                   
+        </web-resource-collection>                                              
+        </security-constraint>
+    '''
+    eles.append(etree.fromstring(text))
+    text = '''
+        <security-constraint>
+            <web-resource-collection>
+                <web-resource-name>In general everything needs to be authenticated</web-resource-name>
+                <url-pattern>/*</url-pattern> <!-- protect the whole application -->
+                <url-pattern>/api/v1/search</url-pattern> <!-- protect search endpoint whitelisted above -->
+                <url-pattern>/api/v1/suggest/*</url-pattern> <!-- protect suggest endpoint whitelisted above -->
+            </web-resource-collection>
+
+            <auth-constraint>
+                <role-name>*</role-name>
+            </auth-constraint>
+
+            <user-data-constraint>
+                <!-- transport-guarantee can be CONFIDENTIAL, INTEGRAL, or NONE -->
+                <transport-guarantee>NONE</transport-guarantee>
+            </user-data-constraint>
+        </security-constraint>
+    '''
+    eles.append(etree.fromstring(text))
+    text = '''
+        <security-role>
+            <role-name>*</role-name>
+        </security-role>
+    '''
+    eles.append(etree.fromstring(text))
+    text = '''
+        <login-config>
+            <auth-method>BASIC</auth-method>
+        </login-config>
+    '''
+    eles.append(etree.fromstring(text))
+    
+    return eles
+
+
+def run_tomcat(name, login):
     webapps_dir = os.path.join(WEBAPPS_DIR, name)
     tmpdir = tempfile.TemporaryDirectory(prefix=name)
 
@@ -141,7 +189,7 @@ def run_tomcat(name):
     zf.close()
 
     webxml = os.path.join(tmpdir.name, 'WEB-INF', 'web.xml')
-    update_web_xml(webxml, name)
+    update_web_xml(webxml, name, login)
 
     shutil.copytree(tmpdir.name, webapps_dir)
     os.chmod(webapps_dir, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
@@ -178,11 +226,12 @@ def update_root(name):
         except:
             pass
 
-   
-def update_web_xml(webxml, name):
+
+def update_web_xml(webxml, name, login):
     configure = os.path.join(OPENGROK_DATA, name + '.xml')
     tree = etree.parse(webxml)
     root = tree.getroot()
+    
     for i in root.getchildren(): 
         if 'context-param' in i.tag: 
             for j in i.getchildren(): 
@@ -195,19 +244,37 @@ def update_web_xml(webxml, name):
                         j.text = configure
                         break
                 break
+    if (login):
+        eles = login_config_elements()
+        for i in eles:
+            root.append(i)
+            
     tree.write(webxml, pretty_print=True)
-                     
 
-if __name__ == '__main__':
-    path = '.'
-    if len(sys.argv) > 1:
-        path = sys.argv[1]
 
-    path = os.path.abspath(path)
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--source', '-s', dest='src_dir', default='.', help='source directory')
+    parser.add_argument('--name', '-n', dest='dst_name', default=None, help='repo name')
+    parser.add_argument('--need-login', '-l', dest='need_login', default=False, help='need login')
+
+    opt = parser.parse_arg()
+    
+    do_opengrok(opt.src_dir, opt.dst_name, opt.need_login)
+    
+
+def do_opengrok(path, name, login):
     if not os.path.exists(path):
         raise Exception("%s is Not Exists" % path)
+
+    path = os.path.abspath(path)
+    
     name = os.path.basename(path)
 
-    run_tomcat(name)
+    run_tomcat(name, login)
     run_opengrok(path, name)
     update_root(name)
+
+
+if __name__ == '__main__':
+    main()
