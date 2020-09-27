@@ -256,9 +256,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--source', '-s', dest='src_dir', default='.', help='source directory')
     parser.add_argument('--name', '-n', dest='dst_name', default=None, help='repo name')
-    parser.add_argument('--need-login', '-l', dest='need_login', default=False, help='need login')
+    parser.add_argument('--need-login', '-l', dest='need_login', action='store_true', default=False, help='need login')
 
-    opt = parser.parse_arg()
+    opt = parser.parse_args()
     
     do_opengrok(opt.src_dir, opt.dst_name, opt.need_login)
     
