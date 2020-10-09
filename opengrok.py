@@ -14,6 +14,13 @@ import tempfile
 import zipfile
 import argparse
 
+
+class OpengrokScript:
+    def __init__(self):
+        super().__init__()
+
+    
+
 def run_cmd(cmd):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     data = p.communicate()
@@ -27,8 +34,8 @@ if platform.system() == 'Windows':
     TOMCAT_DIR = 'C:/Users/QEver/Tools/Tomcat 8.5'
     CTAGS_PATH = 'C:/Users/QEver/Tools/binary/ctags.exe'
 elif platform.system() == 'Linux':
-    cmd = ["whereis", "ctags"]
-    CTAGS_PATH = run_cmd(cmd)[0].split(":")[1].strip().split(" ")[0]
+    cmd = ["where", "ctags"]
+    CTAGS_PATH = run_cmd(cmd)[0].split("\n").strip()
     TOMCAT_DIR = '/var/lib/tomcat8'
     OPENGROK_DIR = os.path.expanduser('~/tools/opengrok')
 elif platform.system() == 'Darwin':
@@ -190,6 +197,8 @@ def run_tomcat(name, login):
 
     webxml = os.path.join(tmpdir.name, 'WEB-INF', 'web.xml')
     update_web_xml(webxml, name, login)
+    if os.path.exists(webapps_dir):
+        shutil.rmtree(webapps_dir)
 
     shutil.copytree(tmpdir.name, webapps_dir)
     os.chmod(webapps_dir, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
