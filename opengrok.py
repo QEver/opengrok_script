@@ -50,7 +50,7 @@ else:
     exit()
 
 
-OPENGROK_OPTIONS = '-H -P -S -G'
+OPENGROK_OPTIONS = '-H -S -G'
 JAVA_OPTIONS = '-Xmx4096m'
 OPENGROK_JAR = os.path.join(OPENGROK_DIR, "lib/opengrok.jar")
 WEBAPPS_DIR = os.path.join(TOMCAT_DIR, "webapps")
