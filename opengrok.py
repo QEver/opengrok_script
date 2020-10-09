@@ -34,8 +34,8 @@ if platform.system() == 'Windows':
     TOMCAT_DIR = 'C:/Users/QEver/Tools/Tomcat 8.5'
     CTAGS_PATH = 'C:/Users/QEver/Tools/binary/ctags.exe'
 elif platform.system() == 'Linux':
-    cmd = ["where", "ctags"]
-    CTAGS_PATH = run_cmd(cmd)[0].split("\n").strip()
+    cmd = ["whereis", "-b", "ctags"]
+    CTAGS_PATH = run_cmd(cmd)[0].split(":")[1].strip().split(" ")[0]
     TOMCAT_DIR = '/var/lib/tomcat8'
     OPENGROK_DIR = os.path.expanduser('~/tools/opengrok')
 elif platform.system() == 'Darwin':
@@ -199,7 +199,7 @@ def run_tomcat(name, login):
     update_web_xml(webxml, name, login)
     if os.path.exists(webapps_dir):
         shutil.rmtree(webapps_dir)
-
+        
     shutil.copytree(tmpdir.name, webapps_dir)
     os.chmod(webapps_dir, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
 
