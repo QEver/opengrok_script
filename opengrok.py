@@ -185,7 +185,7 @@ class OpengrokScript:
         zf.close()
 
         webxml = os.path.join(tmpdir.name, 'WEB-INF', 'web.xml')
-        update_web_xml(webxml, name, login)
+        self.update_web_xml(webxml, name, login)
         if os.path.exists(webapps_dir):
             shutil.rmtree(webapps_dir)
             
@@ -280,6 +280,8 @@ def main():
     env.set_need_login(opt.need_login)
     env.set_projects(opt.projects)
     
+    env.show()
+
     script = OpengrokScript(env)
 
     script.start()
