@@ -17,7 +17,7 @@ def main(args):
                 tp = magic.from_file(fn)
             except:
                 continue
-            if tp.startswith('C source') or 'ISO-8859 txt' in tp:
+            if tp.startswith('C source') or 'ISO-8859 text' in tp:
                 line = '[*] Decode %s' % fn
                 print(line, end='')
                 with open(fn, 'rb') as f:
@@ -38,5 +38,5 @@ def main(args):
 
 
 if __name__ == '__main__':
-    main(sys.argv)`
+    main(sys.argv)
 
