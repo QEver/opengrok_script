@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 import os
 import stat
-import re
-import sys
-from lxml import etree
-import platform
 import time
 import shutil
 import urllib
-from urllib.request import urlopen
-import subprocess
-import tempfile
 import zipfile
+import tempfile
 import argparse
+import subprocess
+
+from lxml import etree
+from urllib.request import urlopen
+from urllib.error import HTTPError
 
 
 class OpengrokUtils:
@@ -27,46 +26,17 @@ class OpengrokScriptEnv:
     def __init__(self):
         self.tomcat_addr = "http://localhost:8080"
         self.opengrok_dir = None
-        self.tomcat_dir = None
+        self.webapps_dir = None
         self.ctags_path = None
         self.opengrok_options = ['-H', '-S', '-G']
         self.java_options = ['-Xmx4096m']
         self.source_dir = None
-        self.dst_name = None
+        self.project_name = None
         self.need_login = False
         self.projects = False
-        self.init()
-
-    def init(self):
-        if platform.system() == 'Windows':
-            self.opengrok_dir = 'C:/Users/QEver/Tools/opengrok-0.13-rc4'
-            self.tomcat_dir = 'C:/Users/QEver/Tools/Tomcat 8.5'
-            self.ctags_path = 'C:/Users/QEver/Tools/binary/ctags.exe'
-        elif platform.system() == 'Linux':
-            cmd = ["whereis", "-b", "ctags"]
-            self.ctags_path = OpengrokUtils.run_cmd(cmd)[0].split(":")[1].strip().split(" ")[0]
-            self.tomcat_dir = '/var/lib/tomcat8'
-            self.opengrok_dir = os.path.expanduser('~/tools/opengrok')
-        elif platform.system() == 'Darwin':
-            cmd = ['brew', '--prefix', 'tomcat@8']
-            self.tomcat_dir = OpengrokUtils.run_cmd(cmd)[0].strip()
-            self.tomcat_dir = os.path.join(self.tomcat_dir, 'libexec')
-            self.opengrok_dir = os.path.expanduser('~/tools/opengrok')
-            cmd = ["brew", '--prefix', "universal-ctags"]
-            self.ctags_path = os.path.join(OpengrokUtils.run_cmd(cmd)[0].strip(), 'bin/ctags')
-        else:
-            raise Exception("Unsupport Platform : %s" % platform.system())
-        
-        self.opengrok_jar = os.path.join(self.opengrok_dir, "lib/opengrok.jar")
-        self.webapps_dir = os.path.join(self.tomcat_dir, "webapps")
-        self.source_war = os.path.join(self.opengrok_dir, 'lib/source.war')
-
-        if 'OPENGROK_DATA' in os.environ:
-            self.opengrok_data = os.environ['OPENGROK_DATA']
-        else:
-            self.opengrok_data = os.path.join(self.opengrok_dir, "data")
-        if not os.path.exists(self.opengrok_data):
-            os.mkdir(self.opengrok_data)
+        self.opengrok_jar = None
+        self.source_war = None
+        self.opengrok_data = None
 
     def check(self):
         if not os.path.exists(self.opengrok_dir):
@@ -74,31 +44,49 @@ class OpengrokScriptEnv:
         if not os.path.exists(self.opengrok_jar):
             raise Exception('Can not found opengrok.jar in %s' % self.opengrok_jar)
         if not os.path.exists(self.source_war):
-            raise('Can not found source.war in %s' % self.source_war)
-        if not os.path.exists(self.tomcat_dir):
-            raise Exception('Can not found tomcat in %s' % self.tomcat_dir)
+            raise ('Can not found source.war in %s' % self.source_war)
         if not os.path.exists(self.webapps_dir):
             raise Exception('Can not found WebApps Dir in %s' % self.webapps_dir)
         if not os.path.exists(self.ctags_path):
             raise Exception('Can not found ctags in %s' % self.ctags_path)
 
     def show(self):
-        print('OpenGrok Dir      : %s' % self.opengrok_dir)
-        print('OpenGrok Options  : %s' % self.opengrok_options)
-        print('OpenGrok Jar Path : %s' % self.opengrok_jar)
-        print('OpenGrok Data Dir : %s' % self.opengrok_data)
-        print('OpenGrok War Path : %s' % self.source_war)
-        print()
-        print('Tomcat Dir  : %s' % self.tomcat_dir)
-        print('WebApps Dir : %s' % self.webapps_dir)
-        print()
-        print('Ctags Path : %s' % self.ctags_path)
+        print("[+] Opengrok Script Environment")
+        if self.project_name:
+            print('\tProject Name      : %s' % self.project_name)
+        else:
+            print('\tProject Name      : (Not Set)')
+        print('\tOpenGrok Dir      : %s' % self.opengrok_dir)
+        print('\tOpenGrok Options  : %s' % self.opengrok_options)
+        print('\tOpenGrok Jar Path : %s' % self.opengrok_jar)
+        print('\tOpenGrok Data Dir : %s' % self.opengrok_data)
+        print('\tOpenGrok War Path : %s' % self.source_war)
+        print('\tWebApps Dir       : %s' % self.webapps_dir)
+        print('\tCtags Path        : %s' % self.ctags_path)
+        print('\tNeed Login        : %s' % self.need_login)
+
+    def set_ctags(self, ctags):
+        self.ctags_path = ctags
+
+    def set_webapps(self, webapps):
+        self.webapps_dir = webapps
+
+    def set_opengrok(self, opengrok):
+        self.opengrok_dir = opengrok
+        self.opengrok_jar = os.path.join(self.opengrok_dir, "lib/opengrok.jar")
+        self.source_war = os.path.join(self.opengrok_dir, 'lib/source.war')
+        if 'OPENGROK_DATA' in os.environ:
+            self.opengrok_data = os.environ['OPENGROK_DATA']
+        else:
+            self.opengrok_data = os.path.join(self.opengrok_dir, "data")
+        if not os.path.exists(self.opengrok_data):
+            os.mkdir(self.opengrok_data)
 
     def set_source(self, src):
         self.source_dir = src
 
-    def set_dst_name(self, dst_name):
-        self.dst_name = dst_name
+    def set_project_name(self, project_name):
+        self.project_name = project_name
 
     def set_need_login(self, need_login):
         self.need_login = need_login
@@ -107,6 +95,7 @@ class OpengrokScriptEnv:
         self.projects = projects
         if self.projects:
             self.opengrok_options.append('-P')
+
 
 class OpengrokScript:
     def __init__(self, env):
@@ -122,10 +111,14 @@ class OpengrokScript:
         cmd += '-d ' + os.path.join(self.env.opengrok_data, name) + ' '
         cmd += ' '.join(self.env.opengrok_options) + ' '
         cmd += '-W ' + os.path.join(self.env.opengrok_data, name + '.xml') + ' '
-        cmd += '-U ' + self.env.tomcat_addr + '/' + name
+        cmd += '-U ' + self.env.tomcat_addr + '/' + name + ' '
 
-        print(cmd)
-        os.system(cmd)
+        print('[+] Run Opengrok Script, Please Waiting ... ')
+        r = os.system(cmd)
+        if r == 0:
+            print('[+] Run Opengrok Success!')
+        else:
+            print('[-] Failed to Run Opengrok!')
 
     def login_config_elements(self):
         eles = []
@@ -170,9 +163,8 @@ class OpengrokScript:
             </login-config>
         '''
         eles.append(etree.fromstring(text))
-        
-        return eles
 
+        return eles
 
     def run_tomcat(self, name, login):
         webapps_dir = os.path.join(self.env.webapps_dir, name)
@@ -188,65 +180,77 @@ class OpengrokScript:
         self.update_web_xml(webxml, name, login)
         if os.path.exists(webapps_dir):
             shutil.rmtree(webapps_dir)
-            
+
         shutil.copytree(tmpdir.name, webapps_dir)
         os.chmod(webapps_dir, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
 
         url = self.env.tomcat_addr + '/' + name
+        print("[+] Waiting for url : %s" % url)
+        s = False
+        N = 30
         while True:
-            print("[*] Waiting for %s" % url)
             try:
                 r = urlopen(url)
                 code = r.code
                 r.close()
-
-            except urllib.error.HTTPError as e:
+                N -= 1
+            except HTTPError as e:
                 code = e.code
             time.sleep(1)
             if code != 404:
+                s = True
                 break
-
+        if s:
+            print('[+] Url was created')
+            return True
+        else:
+            print('[-] Failed to Created Url, check your tomcat settings')
+            return False
 
     def update_root(self, name):
         target = os.path.join(self.env.webapps_dir, 'ROOT/index.html')
+        line = '<a href="/%s" class="list-group-item">%s</a>\n' % (name, name)
         if os.path.exists(target):
             try:
                 f = open(target, 'r')
+
                 n = ''
                 for i in f:
-                    n = n + i
+                    if i.find(line.strip()) != -1:
+                        break
                     if i.find('<!--Source List-->') != -1:
-                        n += '<a href="/%s" class="list-group-item">%s</a>\n' % (name, name)
+                        n += line
+                    n = n + i
                 f.close()
                 f = open(target, 'w')
                 f.write(n)
                 f.close()
-            except:
-                pass
-
+            except Exception as e:
+                print('[-] Update Root Failed : %s' % repr(e))
 
     def update_web_xml(self, webxml, name, login):
         configure = os.path.join(self.env.opengrok_data, name + '.xml')
         tree = etree.parse(webxml)
         root = tree.getroot()
-        
-        for i in root.getchildren(): 
-            if 'context-param' in i.tag: 
-                for j in i.getchildren(): 
-                    if 'param-name' in j.tag: 
-                        if j.text == 'CONFIGURATION': 
-                            f = True 
-                if f: 
-                    for j in i.getchildren():  
-                        if 'param-value' in j.tag: 
+
+        for i in root.getchildren():
+            if 'context-param' in i.tag:
+                f = False
+                for j in i.getchildren():
+                    if 'param-name' in j.tag:
+                        if j.text == 'CONFIGURATION':
+                            f = True
+                if f:
+                    for j in i.getchildren():
+                        if 'param-value' in j.tag:
                             j.text = configure
                             break
                     break
         if (login):
-            eles = login_config_elements()
+            eles = self.login_config_elements()
             for i in eles:
                 root.append(i)
-                
+
         tree.write(webxml, pretty_print=True)
 
     def start(self):
@@ -255,37 +259,50 @@ class OpengrokScript:
             raise Exception("%s is Not Exists" % path)
 
         path = os.path.abspath(path)
-        
-        if self.env.dst_name:
-            name = self.env.dst_name
+
+        if self.env.project_name:
+            name = self.env.project_name
         else:
             name = os.path.basename(path)
 
-        self.run_tomcat(name, self.env.need_login)
+        if not self.run_tomcat(name, self.env.need_login):
+            return
+
         self.run_opengrok(path, name)
+        
         self.update_root(name)
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--source', '-s', dest='src_dir', default='.', help='source directory')
-    parser.add_argument('--name', '-n', dest='dst_name', default=None, help='repo name')
-    parser.add_argument('--need-login', '-l', dest='need_login', action='store_true', default=False, help='need login')
-    parser.add_argument('--projects', '-p', dest='projects', action='store_true', default=False, help='as projects')
+    @staticmethod
+    def main():
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-c', '--ctags', dest='ctags', required=True, help='ctags path')
+        parser.add_argument('-w', '--webapps', dest='webapps', required=True, help='webapps directory of tomcat')
+        parser.add_argument('-o', '--opengrok', dest='opengrok', required=True, help='opengrok directory')
 
-    opt = parser.parse_args()
+        parser.add_argument('--source', '-s', dest='src_dir', default='.', help='source directory')
+        parser.add_argument('--name', '-n', dest='project_name', default=None, help='repo name')
+        parser.add_argument('--need-login', '-l', dest='need_login', action='store_true', default=False,
+                            help='need login')
+        parser.add_argument('--projects', '-p', dest='projects', action='store_true', default=False, help='as projects')
 
-    env = OpengrokScriptEnv()
-    env.set_source(opt.src_dir)
-    env.set_dst_name(opt.dst_name)
-    env.set_need_login(opt.need_login)
-    env.set_projects(opt.projects)
-    
-    env.show()
+        opt = parser.parse_args()
 
-    script = OpengrokScript(env)
+        env = OpengrokScriptEnv()
+        env.set_ctags(opt.ctags)
+        env.set_webapps(opt.webapps)
+        env.set_opengrok(opt.opengrok)
 
-    script.start()
+        env.set_source(opt.src_dir)
+        env.set_project_name(opt.project_name)
+        env.set_need_login(opt.need_login)
+        env.set_projects(opt.projects)
+        env.check()
+        env.show()
+
+        script = OpengrokScript(env)
+
+        script.start()
 
 
 if __name__ == '__main__':
-    main()
+    OpengrokScript.main()
