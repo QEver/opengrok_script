@@ -2,7 +2,7 @@
 
 
 
-** NOTICE: This Script Only Support Python3 **
+**NOTICE: This Script Only Support Python3**
 
 ### 1. download and unpack tomcat
 
@@ -26,7 +26,7 @@ $ tar vxf opengrok-1.7.13.tar.gz
 ```
 if you are using java with version blow of 11, please use opengrok 1.4.9
 ```
-$ wget https://github.com/oracle/opengrok/releases/download/1.7.13/opengrok-1.4.9.tar.gz
+$ wget https://github.com/oracle/opengrok/releases/download/1.4.9/opengrok-1.4.9.tar.gz
 $ tar vxf opengrok-1.7.13.tar.gz
 ```
 
