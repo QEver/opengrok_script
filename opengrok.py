@@ -288,11 +288,11 @@ class OpengrokScript:
         opt = parser.parse_args()
 
         env = OpengrokScriptEnv()
-        env.set_ctags(opt.ctags)
-        env.set_webapps(opt.webapps)
-        env.set_opengrok(opt.opengrok)
+        env.set_ctags(os.path.abspath(opt.ctags))
+        env.set_webapps(os.path.abspath(opt.webapps))
+        env.set_opengrok(os.path.abspath(opt.opengrok))
 
-        env.set_source(opt.src_dir)
+        env.set_source(os.path.abspath(opt.src_dir))
         env.set_project_name(opt.project_name)
         env.set_need_login(opt.need_login)
         env.set_projects(opt.projects)
